@@ -1,0 +1,9 @@
+# torch and torchaudio are pre-installed by SageMaker PyTorch container
+transformers>=4.30.0
+datasets==3.6.0  # pinned to avoid torchcodec dependency in 4.x
+wandb>=0.15.0
+jiwer>=3.0.0
+tqdm>=4.65.0
+soundfile>=0.12.0  # needed by datasets for audio loading
+librosa>=0.10.0  # alternative audio backend
+boto3>=1.26.0  # for S3 checkpoint uploads

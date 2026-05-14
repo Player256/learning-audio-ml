@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Understanding CTC Loss — Interactive Guide</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e0e0e0;
+    --muted: #8888aa;
+    --accent: #6c8cff;
+    --accent2: #ff6c8c;
+    --accent3: #6cffa0;
+    --accent4: #ffd06c;
+    --blank-color: #555;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 20px; }
+
+  /* Hero */
+  .hero {
+    text-align: center;
+    padding: 60px 20px 40px;
+    background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .hero h1 { font-size: 2.4em; margin-bottom: 10px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--muted); font-size: 1.15em; max-width: 600px; margin: 0 auto; }
+
+  /* Navigation */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(15,17,23,0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  }
+  .nav a {
+    color: var(--muted); text-decoration: none; font-size: 0.85em;
+    padding: 4px 12px; border-radius: 20px; transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+  .nav a:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Sections */
+  section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 30px;
+    margin: 30px auto;
+    max-width: 960px;
+  }
+  section h2 {
+    font-size: 1.5em;
+    margin-bottom: 8px;
+    color: var(--accent);
+  }
+  section h3 { font-size: 1.15em; margin: 20px 0 8px; color: var(--accent3); }
+  .subtitle { color: var(--muted); margin-bottom: 20px; font-size: 0.95em; }
+  p { margin-bottom: 14px; }
+
+  /* Interactive boxes */
+  .interactive-box {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+  }
+  .interactive-box label { font-weight: 600; color: var(--accent4); display: block; margin-bottom: 6px; }
+
+  /* Inputs & buttons */
+  input[type="text"], select {
+    background: #0f1117;
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 1em;
+    width: 100%;
+    max-width: 400px;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: background 0.2s;
+    margin: 4px;
+  }
+  button:hover { background: #5a7aee; }
+  button.secondary { background: #333; }
+  button.secondary:hover { background: #444; }
+  button.accent2 { background: var(--accent2); }
+  button.accent3 { background: #3a9960; }
+
+  /* Token display */
+  .token-row {
+    display: flex; gap: 4px; flex-wrap: wrap; margin: 10px 0;
+    align-items: center; min-height: 44px;
+  }
+  .token {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 38px; height: 38px; padding: 0 10px;
+    border-radius: 6px; font-weight: 700; font-size: 1.05em;
+    transition: all 0.3s;
+  }
+  .token.char { background: var(--accent); color: #fff; }
+  .token.blank { background: var(--blank-color); color: #aaa; font-style: italic; font-size: 0.85em; }
+  .token.highlight { box-shadow: 0 0 0 2px var(--accent4); transform: scale(1.1); }
+  .token.fade { opacity: 0.3; transform: scale(0.9); }
+  .arrow { color: var(--muted); font-size: 1.4em; margin: 0 6px; }
+
+  /* Grid / Trellis */
+  .trellis-container { overflow-x: auto; padding: 10px 0; }
+  .trellis {
+    display: inline-grid;
+    gap: 2px;
+    margin: 10px 0;
+  }
+  .trellis-cell {
+    width: 52px; height: 42px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+    font-size: 0.78em;
+    font-weight: 600;
+    position: relative;
+    transition: all 0.3s;
+  }
+  .trellis-cell.header { background: transparent; color: var(--muted); font-weight: 400; font-size: 0.75em; }
+  .trellis-cell.label { background: transparent; color: var(--accent4); font-size: 0.9em; min-width: 36px; justify-content: flex-end; padding-right: 6px; }
+  .trellis-cell.node { background: #222; border: 1px solid #333; cursor: pointer; }
+  .trellis-cell.node:hover { border-color: var(--accent); }
+  .trellis-cell.node.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .trellis-cell.node.path { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+  .trellis-cell.node.impossible { background: #111; color: #333; border-color: #1a1a1a; }
+
+  /* SVG overlay for trellis arrows */
+  .trellis-wrapper { position: relative; display: inline-block; }
+  .trellis-svg {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* Probability bars */
+  .prob-bar-container { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+  .prob-bar-label { width: 30px; text-align: center; font-weight: 700; font-size: 0.9em; }
+  .prob-bar-track { flex: 1; height: 22px; background: #222; border-radius: 4px; overflow: hidden; max-width: 300px; }
+  .prob-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; display: flex; align-items: center; padding-left: 6px; font-size: 0.75em; font-weight: 600; }
+
+  /* Beam search */
+  .beam-step {
+    display: flex; gap: 12px; flex-wrap: wrap; margin: 10px 0;
+    align-items: stretch;
+  }
+  .beam-candidate {
+    background: #1a1d27;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    min-width: 140px;
+    flex: 1;
+  }
+  .beam-candidate.winner { border-color: var(--accent3); }
+  .beam-candidate .prefix { font-size: 1.3em; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .beam-candidate .score { font-size: 0.85em; color: var(--muted); }
+
+  /* Analogy boxes */
+  .analogy {
+    background: linear-gradient(135deg, rgba(108,140,255,0.1), rgba(108,255,160,0.05));
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+    font-size: 0.95em;
+  }
+  .analogy strong { color: var(--accent4); }
+
+  /* Slider */
+  input[type="range"] {
+    -webkit-appearance: none; width: 100%; max-width: 400px; height: 6px;
+    background: #333; border-radius: 3px; outline: none;
+    margin: 8px 0;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    background: var(--accent); border-radius: 50%; cursor: pointer;
+  }
+
+  /* Animated step indicator */
+  .step-indicator {
+    display: flex; gap: 4px; margin: 10px 0;
+  }
+  .step-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #333; transition: background 0.3s;
+  }
+  .step-dot.active { background: var(--accent); }
+  .step-dot.done { background: var(--accent3); }
+
+  .code-like {
+    font-family: 'Fira Code', 'Consolas', monospace;
+    background: rgba(0,0,0,0.4);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+
+  .flex-center { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
+
+  .warning {
+    background: rgba(255, 208, 108, 0.1);
+    border-left: 3px solid var(--accent4);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 14px 0;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.4s ease-out; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>Understanding <span>CTC Loss</span></h1>
+  <p>An interactive, dumbed-down guide to Connectionist Temporal Classification. Play with the widgets to build intuition.</p>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <a href="#problem">The Problem</a>
+  <a href="#blanks">Blank Tokens</a>
+  <a href="#collapsing">Collapsing</a>
+  <a href="#all-paths">All Paths</a>
+  <a href="#dp">Dynamic Programming</a>
+  <a href="#trellis">Trellis Explorer</a>
+  <a href="#decoding">Decoding</a>
+  <a href="#properties">Properties</a>
+</div>
+
+<div class="container">
+
+<!-- ============================== SECTION 1: THE PROBLEM ============================== -->
+<section id="problem">
+  <h2>1. The Problem CTC Solves</h2>
+  <p class="subtitle">Why can't we just use normal supervised learning?</p>
+
+  <div class="analogy">
+    <strong>Analogy:</strong> Imagine you have an audio recording of someone saying "cat" that is 100 time-steps long.
+    You know the answer is "cat" (3 characters), but you do NOT know which of those 100 time-steps
+    correspond to 'c', 'a', or 't'. That's the <strong>alignment problem</strong>.
+  </div>
+
+  <p>In normal classification, each input has exactly one label. But in speech recognition:</p>
+  <ul style="margin: 10px 0 10px 24px; color: var(--muted);">
+    <li>The input (audio) has <strong>hundreds of time-steps</strong></li>
+    <li>The output (text) has <strong>far fewer characters</strong></li>
+    <li>We <strong>don't know</strong> which audio frames go with which character</li>
+    <li>Different speakers say the same word at different speeds</li>
+  </ul>
+
+  <div class="interactive-box">
+    <label>Try it: Where does each character happen?</label>
+    <p style="font-size:0.9em; color:var(--muted); margin-bottom:10px;">
+      Click on the audio frames below to assign them to characters. Notice how there are MANY valid ways to do it!
+    </p>
+    <div style="margin-bottom:8px;">
+      Target word: <strong style="color:var(--accent); font-size:1.3em;">cat</strong>
+    </div>
+    <div id="alignment-demo" style="display:flex; gap:3px; flex-wrap:wrap; margin:10px 0;"></div>
+    <div style="display:flex; gap:12px; margin-top:8px;">
+      <button onclick="setAlignment('early')">Early speaker</button>
+      <button onclick="setAlignment('late')">Late speaker</button>
+      <button onclick="setAlignment('spread')">Slow speaker</button>
+      <button class="secondary" onclick="setAlignment('clear')">Clear</button>
+    </div>
+    <p id="alignment-result" style="margin-top:10px; font-size:0.9em;"></p>
+  </div>
+
+  <p><strong>The key insight:</strong> CTC says "I don't care about the exact alignment. I'll consider ALL possible alignments and sum up their probabilities." This is what makes it so powerful.</p>
+</section>
+
+<!-- ============================== SECTION 2: BLANK TOKEN ============================== -->
+<section id="blanks">
+  <h2>2. The Blank Token (ε)</h2>
+  <p class="subtitle">CTC's secret weapon for handling silence and repeated characters</p>
+
+  <div class="analogy">
+    <strong>Analogy:</strong> Think of the blank token like a "silence" or "nothing happening" marker.
+    Between saying 'c' and 'a', your mouth is transitioning — that's a blank. During a pause — that's a blank too.
+  </div>
+
+  <h3>Why do we need blanks?</h3>
+
+  <div class="two-col">
+    <div>
+      <p><strong style="color:var(--accent2);">Problem 1: Silence</strong></p>
+      <p style="font-size:0.9em;">Not every audio frame contains a character. Some frames are silence, transition sounds, or noise. The blank gives the network a way to say "nothing useful here."</p>
+    </div>
+    <div>
+      <p><strong style="color:var(--accent2);">Problem 2: Repeated chars</strong></p>
+      <p style="font-size:0.9em;">How do you tell "helo" from "hello"? The word "hello" has two L's in a row. Without blanks, consecutive L's would merge into one. Blanks separate them.</p>
+    </div>
+  </div>
+
+  <div class="interactive-box">
+    <label>Interactive: See how blanks separate repeated characters</label>
+    <div style="margin-bottom:10px;">
+      <input type="text" id="blank-input" value="hello" placeholder="Type a word..." maxlength="10"
+        oninput="updateBlankDemo()">
+    </div>
+    <div>
+      <p style="font-size:0.9em; color:var(--muted);">Original characters:</p>
+      <div id="blank-original" class="token-row"></div>
+      <p style="font-size:0.9em; color:var(--muted); margin-top:10px;">Expanded with blanks (Z sequence — blanks between every char, plus start/end):</p>
+      <div id="blank-expanded" class="token-row"></div>
+      <p id="blank-explanation" style="margin-top:10px; font-size:0.9em;"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SECTION 3: COLLAPSING ============================== -->
+<section id="collapsing">
+  <h2>3. The Collapsing Rules</h2>
+  <p class="subtitle">How CTC converts a long alignment back into the short output</p>
+
+  <p>CTC's collapsing is a two-step process applied to an alignment (same length as input):</p>
+  <ol style="margin: 10px 0 10px 24px; color: var(--muted);">
+    <li><strong style="color:var(--text);">Merge</strong> consecutive identical characters → <span class="code-like">aaa → a</span></li>
+    <li><strong style="color:var(--text);">Remove</strong> all blank (ε) tokens → <span class="code-like">ε disappears</span></li>
+  </ol>
+
+  <div class="interactive-box">
+    <label>Interactive: Build an alignment and watch it collapse</label>
+    <p style="font-size:0.9em; color:var(--muted); margin-bottom:10px;">
+      Click buttons to add tokens. Watch the collapsing happen in real-time.
+    </p>
+    <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:10px;">
+      <button onclick="addCollapseToken('c')">c</button>
+      <button onclick="addCollapseToken('a')">a</button>
+      <button onclick="addCollapseToken('t')">t</button>
+      <button onclick="addCollapseToken('h')">h</button>
+      <button onclick="addCollapseToken('e')">e</button>
+      <button onclick="addCollapseToken('l')">l</button>
+      <button onclick="addCollapseToken('o')">o</button>
+      <button class="secondary" onclick="addCollapseToken('ε')">ε (blank)</button>
+      <button class="accent2" onclick="clearCollapse()">Clear</button>
+    </div>
+
+    <p style="font-size:0.85em; color:var(--muted);">Alignment (raw):</p>
+    <div id="collapse-raw" class="token-row" style="min-height:44px;"></div>
+
+    <p style="font-size:0.85em; color:var(--muted); margin-top:8px;">Step 1 — Merge consecutive duplicates:</p>
+    <div id="collapse-merged" class="token-row" style="min-height:44px;"></div>
+
+    <p style="font-size:0.85em; color:var(--muted); margin-top:8px;">Step 2 — Remove blanks → Final output:</p>
+    <div id="collapse-final" class="token-row" style="min-height:44px;"></div>
+
+    <div style="margin-top:12px; padding:10px; background:rgba(0,0,0,0.2); border-radius:6px;">
+      <p style="font-size:0.85em; color:var(--muted); margin:0;">Try these:</p>
+      <button class="secondary" onclick="setCollapseExample(['c','c','a','ε','t','t','t'])" style="font-size:0.8em;">c c a ε t t t → cat</button>
+      <button class="secondary" onclick="setCollapseExample(['h','ε','e','l','l','ε','l','l','o'])" style="font-size:0.8em;">h ε e l l ε l l o → hello</button>
+      <button class="secondary" onclick="setCollapseExample(['ε','ε','a','a','ε','a','a','ε'])" style="font-size:0.8em;">ε ε a a ε a a ε → aa</button>
+    </div>
+  </div>
+
+  <div class="warning">
+    <strong>Key insight:</strong> Many different alignments collapse to the same output!
+    <span class="code-like">ccaat</span>, <span class="code-like">cεat</span>, <span class="code-like">εcatt</span>
+    all collapse to "cat". CTC sums the probabilities of ALL these alignments.
+  </div>
+</section>
+
+<!-- ============================== SECTION 4: ALL PATHS ============================== -->
+<section id="all-paths">
+  <h2>4. Why Sum Over All Paths?</h2>
+  <p class="subtitle">The core idea behind CTC loss</p>
+
+  <div class="analogy">
+    <strong>Analogy:</strong> Imagine asking "what's the probability of getting from home to work?"
+    There are many routes. You don't pick just one — you add up the probability of ALL routes.
+    That total is your answer. CTC does the same with alignments.
+  </div>
+
+  <p>The neural network outputs a probability distribution over characters at each time-step.
+     For a given target word, CTC computes:</p>
+
+  <div style="text-align:center; margin:20px 0; font-size:1.2em;">
+    <span class="code-like">P("cat" | audio) = Σ P(alignment) for every alignment that collapses to "cat"</span>
+  </div>
+
+  <div class="interactive-box">
+    <label>Interactive: See all valid alignments for a tiny example</label>
+    <p style="font-size:0.9em; color:var(--muted); margin-bottom:10px;">
+      Target: <strong>"hi"</strong> with T=<span id="paths-T">4</span> input time-steps.
+      Each alignment must be length T and collapse to "hi".
+    </p>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:0.85em;">Number of time-steps (T):</label>
+      <input type="range" id="paths-slider" min="3" max="8" value="4" oninput="updatePathsDemo()">
+    </div>
+    <div id="paths-list" style="max-height:350px; overflow-y:auto;"></div>
+    <p id="paths-count" style="margin-top:10px; font-weight:600;"></p>
+  </div>
+
+  <p>Even for the tiny word "hi" with a few time-steps, there are many valid alignments.
+     For real speech (hundreds of time-steps, dozens of characters), the number is <strong>astronomically large</strong> — like 10<sup>40</sup>.
+     We can't enumerate them. We need a smarter way...</p>
+</section>
+
+<!-- ============================== SECTION 5: DYNAMIC PROGRAMMING ============================== -->
+<section id="dp">
+  <h2>5. Dynamic Programming to the Rescue</h2>
+  <p class="subtitle">Computing the sum efficiently without listing every path</p>
+
+  <div class="analogy">
+    <strong>Analogy:</strong> Imagine counting all paths through a city grid. Instead of walking every path,
+    you stand at each intersection and ask "how many ways could I have gotten here?" That's dynamic programming —
+    you reuse answers from previous intersections. CTC does this with probabilities.
+  </div>
+
+  <h3>The Expanded Sequence (Z)</h3>
+  <p>First, we create an expanded version of the target by inserting blanks:</p>
+  <div style="text-align:center; margin:16px 0;">
+    <span class="code-like">"cat" → [ε, c, ε, a, ε, t, ε]</span>
+  </div>
+  <p>This Z sequence has length 2U+1 (where U = number of output chars). It represents all the "states" an alignment can be in at any time-step.</p>
+
+  <h3>The Alpha (α) Values</h3>
+  <p>α(s, t) = <em>"total probability of all partial alignments that have produced the first s tokens of Z after t input time-steps."</em></p>
+
+  <h3>Transition Rules</h3>
+  <p>At each time-step, from state s, you can:</p>
+
+  <div class="interactive-box">
+    <label>The two cases for transitions:</label>
+
+    <div class="two-col" style="margin-top:10px;">
+      <div style="background:rgba(108,140,255,0.1); padding:14px; border-radius:8px;">
+        <p><strong style="color:var(--accent);">Case 1: Can't skip</strong></p>
+        <p style="font-size:0.88em;">When current token is ε (blank), OR current token equals the token 2 positions back (e.g., both are 'a'):</p>
+        <p style="font-size:0.88em;">→ Can come from <strong>same position (s)</strong> or <strong>one back (s-1)</strong></p>
+        <div class="code-like" style="margin-top:8px; font-size:0.85em;">α(s,t) = [α(s,t-1) + α(s-1,t-1)] × P(token_s at time t)</div>
+      </div>
+      <div style="background:rgba(255,108,140,0.1); padding:14px; border-radius:8px;">
+        <p><strong style="color:var(--accent2);">Case 2: Can skip the blank</strong></p>
+        <p style="font-size:0.88em;">When current token is a character AND is different from 2 positions back:</p>
+        <p style="font-size:0.88em;">→ Can also come from <strong>two back (s-2)</strong>, skipping the blank between different characters</p>
+        <div class="code-like" style="margin-top:8px; font-size:0.85em;">α(s,t) = [α(s-2,t-1) + α(s-1,t-1) + α(s,t-1)] × P(token_s at time t)</div>
+      </div>
+    </div>
+
+    <div class="analogy" style="margin-top:14px;">
+      <strong>Why can't we skip for repeated chars?</strong> If the target has "ll" (like in "hello"),
+      we MUST pass through the blank between them — otherwise the two L's would merge into one L when we collapse!
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SECTION 6: TRELLIS ============================== -->
+<section id="trellis">
+  <h2>6. Interactive Trellis Explorer</h2>
+  <p class="subtitle">Watch the dynamic programming happen step by step</p>
+
+  <div class="interactive-box">
+    <label>Configure the example:</label>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:16px;">
+      <div>
+        <span style="font-size:0.85em; color:var(--muted);">Target word:</span><br>
+        <select id="trellis-word" onchange="buildTrellis()">
+          <option value="hi">hi</option>
+          <option value="cat" selected>cat</option>
+          <option value="ab">ab</option>
+          <option value="aa">aa (repeated char!)</option>
+        </select>
+      </div>
+      <div>
+        <span style="font-size:0.85em; color:var(--muted);">Time-steps:</span><br>
+        <select id="trellis-T" onchange="buildTrellis()">
+          <option value="5">5</option>
+          <option value="6" selected>6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+      <button onclick="trellisAnimate()" id="trellis-play-btn">▶ Play animation</button>
+      <button class="secondary" onclick="trellisReset()">Reset</button>
+      <button class="accent3" onclick="trellisShowAllPaths()">Show all valid paths</button>
+    </div>
+
+    <p style="font-size:0.85em; color:var(--muted);">
+      The grid below shows states (rows = Z sequence tokens) vs time-steps (columns).
+      <span style="color:var(--accent);">Blue = reachable</span>.
+      <span style="color:var(--accent2);">Pink = on a valid path</span>.
+      Dark = unreachable.
+    </p>
+
+    <div class="trellis-container">
+      <div id="trellis-grid"></div>
+    </div>
+
+    <div id="trellis-info" style="margin-top:10px; font-size:0.9em; color:var(--muted);"></div>
+
+    <div id="trellis-alpha-detail" style="margin-top:10px; padding:12px; background:rgba(0,0,0,0.2); border-radius:6px; display:none;">
+      <p style="font-weight:600; color:var(--accent4); margin-bottom:6px;">Transition detail:</p>
+      <div id="trellis-alpha-text" style="font-size:0.9em;"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SECTION 7: DECODING ============================== -->
+<section id="decoding">
+  <h2>7. Decoding: Getting the Output</h2>
+  <p class="subtitle">Training uses the loss, but how do we get actual predictions?</p>
+
+  <h3>Method 1: Best Path Decoding (Greedy)</h3>
+  <p>At each time-step, pick the most likely character, then collapse.</p>
+
+  <div class="interactive-box">
+    <label>Interactive: Best Path Decoding</label>
+    <p style="font-size:0.9em; color:var(--muted); margin-bottom:10px;">
+      Each column shows the network's probability distribution at one time-step.
+      The greedy pick (highest probability) is highlighted. Watch what happens when we collapse.
+    </p>
+    <div id="greedy-demo"></div>
+    <div style="margin-top:10px;">
+      <button onclick="randomizeGreedy()">Randomize probabilities</button>
+      <button class="secondary" onclick="setGreedyExample('good')">Good example</button>
+      <button class="secondary" onclick="setGreedyExample('bad')">Tricky example (greedy fails)</button>
+    </div>
+  </div>
+
+  <h3>Method 2: Beam Search (Smarter)</h3>
+  <p>Instead of being greedy, keep track of the top-K most promising <em>prefixes</em> (not alignments!).</p>
+
+  <div class="analogy">
+    <strong>Key trick:</strong> Normal beam search tracks raw alignments like "ccε a". CTC beam search
+    tracks the <em>collapsed output</em> like "ca" — and combines probabilities from all alignments
+    that produce that same output. This is much more efficient.
+  </div>
+
+  <div class="interactive-box">
+    <label>Interactive: Beam Search Step-by-Step</label>
+    <p style="font-size:0.9em; color:var(--muted); margin-bottom:10px;">
+      Watch beam search (beam width = 3) process time-steps one by one.
+    </p>
+    <div id="beam-demo"></div>
+    <button onclick="runBeamDemo()" style="margin-top:10px;">▶ Step through beam search</button>
+    <button class="secondary" onclick="resetBeamDemo()">Reset</button>
+    <div id="beam-steps" style="margin-top:14px;"></div>
+  </div>
+</section>
+
+<!-- ============================== SECTION 8: PROPERTIES ============================== -->
+<section id="properties">
+  <h2>8. CTC Properties & Limitations</h2>
+  <p class="subtitle">What CTC assumes, and what that means in practice</p>
+
+  <div class="two-col">
+    <div class="interactive-box">
+      <h3 style="margin-top:0;">✓ Strengths</h3>
+      <ul style="margin-left:18px; font-size:0.92em; color:var(--muted);">
+        <li><strong style="color:var(--accent3);">No alignment needed</strong> — just pairs of (input, output)</li>
+        <li><strong style="color:var(--accent3);">Differentiable</strong> — plug into any neural network and train with backprop</li>
+        <li><strong style="color:var(--accent3);">Flexible input lengths</strong> — handles variable-length sequences naturally</li>
+        <li><strong style="color:var(--accent3);">Swappable LM</strong> — can plug in different language models at decoding time</li>
+      </ul>
+    </div>
+    <div class="interactive-box">
+      <h3 style="margin-top:0;">✗ Limitations</h3>
+      <ul style="margin-left:18px; font-size:0.92em; color:var(--muted);">
+        <li><strong style="color:var(--accent2);">Conditional independence</strong> — assumes outputs are independent given input (no "language model" built in)</li>
+        <li><strong style="color:var(--accent2);">Monotonic only</strong> — can't reorder (rules out translation)</li>
+        <li><strong style="color:var(--accent2);">Many-to-one</strong> — each output char maps to one "position" (can't do multi-char units like "th")</li>
+        <li><strong style="color:var(--accent2);">Output ≤ Input</strong> — output sequence can't be longer than input</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="interactive-box">
+    <label>Interactive: Conditional Independence Problem</label>
+    <p style="font-size:0.9em; color:var(--muted); margin-bottom:10px;">
+      CTC can't tell the difference between "triple A" (aaa) and "the letter A" (a) from context alone,
+      because it assumes each character's probability is independent. Toggle to see the difference:
+    </p>
+    <div style="display:flex; gap:10px; margin-bottom:10px;">
+      <button id="ci-btn-1" onclick="showCIExample(1)" class="accent3">triple A → "aaa"</button>
+      <button id="ci-btn-2" onclick="showCIExample(2)" class="secondary">the letter A → "a"</button>
+    </div>
+    <div id="ci-display">
+      <p style="font-size:0.9em;">
+        With CTC, after predicting the first 'a', the model doesn't "know" whether more 'a's should follow.
+        The probability of the next character doesn't change based on what was already output.
+        A separate language model is needed to handle this.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SECTION 9: SUMMARY ============================== -->
+<section id="summary">
+  <h2>Summary: The CTC Pipeline</h2>
+  <div style="display:flex; flex-direction:column; gap:12px; margin:20px 0;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="background:var(--accent); color:#fff; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0;">1</div>
+      <div><strong>Input</strong> → Audio waveform split into T time-steps, fed through a neural network</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="background:var(--accent); color:#fff; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0;">2</div>
+      <div><strong>Network output</strong> → At each time-step, a probability distribution over all characters + blank</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="background:var(--accent); color:#fff; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0;">3</div>
+      <div><strong>CTC Loss (training)</strong> → Use forward algorithm on the trellis to sum probabilities of ALL valid alignments. Loss = -log of this sum.</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="background:var(--accent); color:#fff; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0;">4</div>
+      <div><strong>Backprop</strong> → Gradients flow through the DP computation to update the network</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="background:var(--accent2); color:#fff; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0;">5</div>
+      <div><strong>Decoding (inference)</strong> → Use beam search to find the most likely output sequence</div>
+    </div>
+  </div>
+
+  <div class="analogy">
+    <strong>The one-sentence summary:</strong> CTC lets you train a neural network to map variable-length inputs to variable-length outputs by defining the loss as the negative log of the total probability of ALL alignments between input and output, computed efficiently with dynamic programming.
+  </div>
+</section>
+
+</div><!-- /container -->
+
+<div style="text-align:center; padding:30px; color:var(--muted); font-size:0.85em;">
+  Based on <a href="https://distill.pub/2017/ctc/" style="color:var(--accent);">Sequence Modeling With CTC</a> by Awni Hannun (Distill, 2017)
+</div>
+
+<script>
+// ===================== SECTION 1: Alignment Demo =====================
+(function(){
+  const container = document.getElementById('alignment-demo');
+  const T = 12;
+  const chars = ['c','a','t'];
+  const colors = ['var(--accent)','var(--accent2)','var(--accent3)'];
+  let assignments = new Array(T).fill(-1);
+
+  function render(){
+    container.innerHTML = '';
+    for(let i=0;i<T;i++){
+      const d = document.createElement('div');
+      d.style.cssText = `width:40px;height:40px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+        cursor:pointer;font-weight:700;font-size:0.85em;transition:all 0.2s;border:2px solid #333;`;
+      if(assignments[i]>=0){
+        d.style.background = colors[assignments[i]];
+        d.style.borderColor = colors[assignments[i]];
+        d.style.color = '#fff';
+        d.textContent = chars[assignments[i]];
+      } else {
+        d.style.background = '#1a1a2a';
+        d.style.color = '#555';
+        d.textContent = 't'+i;
+      }
+      d.onclick = ()=>{
+        assignments[i] = (assignments[i]+1) % (chars.length+1);
+        if(assignments[i]===chars.length) assignments[i]=-1;
+        render();
+      };
+      container.appendChild(d);
+    }
+    // result
+    const r = document.getElementById('alignment-result');
+    const assigned = assignments.filter(a=>a>=0);
+    if(assigned.length>0){
+      const collapsed = [];
+      let prev = -1;
+      for(const a of assignments){
+        if(a>=0 && a!==prev) collapsed.push(chars[a]);
+        prev = a>=0 ? a : prev;
+      }
+      r.innerHTML = `Current alignment produces: "<strong style="color:var(--accent)">${collapsed.join('')}</strong>"`;
+    } else {
+      r.textContent = 'Click frames or use the buttons below.';
+    }
+  }
+
+  window.setAlignment = function(mode){
+    assignments.fill(-1);
+    if(mode==='early'){
+      assignments[0]=0; assignments[1]=0; assignments[2]=1; assignments[3]=2;
+    } else if(mode==='late'){
+      assignments[8]=0; assignments[9]=1; assignments[10]=2; assignments[11]=2;
+    } else if(mode==='spread'){
+      assignments[0]=0; assignments[1]=0; assignments[2]=0; assignments[3]=0;
+      assignments[5]=1; assignments[6]=1; assignments[7]=1;
+      assignments[9]=2; assignments[10]=2; assignments[11]=2;
+    }
+    render();
+  };
+
+  render();
+})();
+
+// ===================== SECTION 2: Blank Token Demo =====================
+function updateBlankDemo(){
+  const word = document.getElementById('blank-input').value.toLowerCase();
+  const orig = document.getElementById('blank-original');
+  const exp = document.getElementById('blank-expanded');
+  const expl = document.getElementById('blank-explanation');
+
+  orig.innerHTML = '';
+  for(const ch of word){
+    orig.innerHTML += `<div class="token char">${ch}</div>`;
+  }
+
+  // Build expanded Z
+  const Z = [];
+  for(let i=0;i<word.length;i++){
+    Z.push('ε');
+    Z.push(word[i]);
+  }
+  Z.push('ε');
+
+  exp.innerHTML = '';
+  for(const ch of Z){
+    if(ch==='ε') exp.innerHTML += `<div class="token blank">ε</div>`;
+    else exp.innerHTML += `<div class="token char">${ch}</div>`;
+  }
+
+  // Find repeated chars
+  const repeats = [];
+  for(let i=1;i<word.length;i++){
+    if(word[i]===word[i-1]) repeats.push(word[i]);
+  }
+  if(repeats.length>0){
+    expl.innerHTML = `⚠️ Has repeated chars: <strong>${[...new Set(repeats)].join(', ')}</strong>.
+      The blanks between them are <strong>mandatory</strong> — without them, the repeated chars would collapse into one!`;
+    expl.style.color = 'var(--accent4)';
+  } else {
+    expl.innerHTML = `No repeated characters. The blanks between different characters are optional (paths can skip them).`;
+    expl.style.color = 'var(--accent3)';
+  }
+}
+updateBlankDemo();
+
+// ===================== SECTION 3: Collapsing Demo =====================
+let collapseTokens = [];
+
+function renderCollapse(){
+  const raw = document.getElementById('collapse-raw');
+  const merged = document.getElementById('collapse-merged');
+  const final = document.getElementById('collapse-final');
+
+  // Raw
+  raw.innerHTML = collapseTokens.map(t =>
+    t==='ε' ? `<div class="token blank">ε</div>` : `<div class="token char">${t}</div>`
+  ).join('');
+
+  // Step 1: merge consecutive duplicates
+  const mergedArr = [];
+  for(let i=0;i<collapseTokens.length;i++){
+    if(i===0 || collapseTokens[i]!==collapseTokens[i-1]){
+      mergedArr.push(collapseTokens[i]);
+    }
+  }
+  merged.innerHTML = mergedArr.map(t =>
+    t==='ε' ? `<div class="token blank fade">ε</div>` : `<div class="token char">${t}</div>`
+  ).join('');
+
+  // Step 2: remove blanks
+  const finalArr = mergedArr.filter(t=>t!=='ε');
+  final.innerHTML = finalArr.length>0
+    ? finalArr.map(t => `<div class="token char highlight">${t}</div>`).join('')
+    : '<span style="color:var(--muted); font-style:italic;">empty</span>';
+}
+
+window.addCollapseToken = function(t){ collapseTokens.push(t); renderCollapse(); };
+window.clearCollapse = function(){ collapseTokens=[]; renderCollapse(); };
+window.setCollapseExample = function(arr){ collapseTokens=[...arr]; renderCollapse(); };
+renderCollapse();
+
+// ===================== SECTION 4: All Paths Demo =====================
+function updatePathsDemo(){
+  const T = parseInt(document.getElementById('paths-slider').value);
+  document.getElementById('paths-T').textContent = T;
+  const target = 'hi';
+  const alphabet = ['h','i','ε'];
+
+  // Generate all valid alignments
+  const paths = [];
+  function generate(pos, arr){
+    if(pos===T){
+      // Collapse
+      const merged = [];
+      for(let i=0;i<arr.length;i++){
+        if(i===0 || arr[i]!==arr[i-1]) merged.push(arr[i]);
+      }
+      const final = merged.filter(c=>c!=='ε').join('');
+      if(final===target) paths.push([...arr]);
+      return;
+    }
+    for(const ch of alphabet){
+      arr.push(ch);
+      generate(pos+1, arr);
+      arr.pop();
+    }
+  }
+  generate(0, []);
+
+  const list = document.getElementById('paths-list');
+  list.innerHTML = paths.slice(0,100).map(p =>
+    `<div class="token-row" style="margin:2px 0;">${p.map(t=>
+      t==='ε'?`<div class="token blank" style="min-width:30px;height:28px;font-size:0.8em;">ε</div>`
+        :`<div class="token char" style="min-width:30px;height:28px;font-size:0.8em;">${t}</div>`
+    ).join('')}<span class="arrow">→</span><strong style="color:var(--accent);">hi</strong></div>`
+  ).join('');
+
+  document.getElementById('paths-count').innerHTML =
+    `Total valid alignments: <strong style="color:var(--accent)">${paths.length}</strong>` +
+    (paths.length>100 ? ' (showing first 100)' : '');
+}
+updatePathsDemo();
+
+// ===================== SECTION 6: Trellis =====================
+let trellisState = {};
+
+function buildTrellis(){
+  let word = document.getElementById('trellis-word').value;
+  if(word==='aa (repeated char!)') word='aa';
+  const T = parseInt(document.getElementById('trellis-T').value);
+  const chars = word.split('');
+  // Build Z
+  const Z = [];
+  for(const c of chars){ Z.push('ε'); Z.push(c); }
+  Z.push('ε');
+  const S = Z.length;
+
+  // Compute reachability (which cells are possible)
+  const reachable = Array.from({length:S}, ()=>new Array(T).fill(false));
+
+  // Forward pass: determine reachable states
+  // Start: can be at Z[0]=ε or Z[1]=first char
+  reachable[0][0] = true;
+  reachable[1][0] = true;
+
+  for(let t=1;t<T;t++){
+    for(let s=0;s<S;s++){
+      // Can come from s (stay)
+      if(reachable[s][t-1]) reachable[s][t] = true;
+      // Can come from s-1
+      if(s>0 && reachable[s-1][t-1]) reachable[s][t] = true;
+      // Can come from s-2 (skip blank) if allowed
+      if(s>1 && Z[s]!=='ε' && Z[s]!==Z[s-2] && reachable[s-2][t-1]) reachable[s][t] = true;
+
+      // Constraint: can't be too far ahead or too far behind
+      // Must be able to reach end from here and must be reachable from start
+      if(s > 2*(t+1)) reachable[s][t] = false; // can't jump more than 2 per step from start
+      if(S-1-s > 2*(T-t)) reachable[s][t] = false; // must be able to reach end
+    }
+  }
+
+  // Also backward pass to prune states that can't reach the end
+  const canReachEnd = Array.from({length:S}, ()=>new Array(T).fill(false));
+  canReachEnd[S-1][T-1] = true;
+  canReachEnd[S-2][T-1] = true;
+  for(let t=T-2;t>=0;t--){
+    for(let s=S-1;s>=0;s--){
+      if(canReachEnd[s][t+1]) canReachEnd[s][t] = true;
+      if(s<S-1 && canReachEnd[s+1][t+1]) canReachEnd[s][t] = true;
+      if(s<S-2 && Z[s+2]!=='ε' && Z[s+2]!==Z[s] && canReachEnd[s+2][t+1]) canReachEnd[s][t] = true;
+    }
+  }
+
+  for(let s=0;s<S;s++) for(let t=0;t<T;t++){
+    reachable[s][t] = reachable[s][t] && canReachEnd[s][t];
+  }
+
+  trellisState = { Z, S, T, reachable, word, chars };
+  renderTrellis();
+}
+
+function renderTrellis(highlights, pathCells){
+  const {Z, S, T, reachable} = trellisState;
+  const grid = document.getElementById('trellis-grid');
+  const highlightSet = new Set((highlights||[]).map(([s,t])=>`${s},${t}`));
+  const pathSet = new Set((pathCells||[]).map(([s,t])=>`${s},${t}`));
+
+  let html = `<div class="trellis" style="grid-template-columns: 50px repeat(${T}, 52px); grid-template-rows: repeat(${S+1}, 42px);">`;
+
+  // Header row
+  html += `<div class="trellis-cell header"></div>`;
+  for(let t=0;t<T;t++){
+    html += `<div class="trellis-cell header">t=${t+1}</div>`;
+  }
+
+  // Grid
+  for(let s=0;s<S;s++){
+    html += `<div class="trellis-cell label">${Z[s]==='ε'?'ε':Z[s]}</div>`;
+    for(let t=0;t<T;t++){
+      let cls = 'trellis-cell node';
+      if(pathSet.has(`${s},${t}`)) cls += ' path';
+      else if(highlightSet.has(`${s},${t}`)) cls += ' active';
+      else if(!reachable[s][t]) cls += ' impossible';
+      html += `<div class="${cls}" data-s="${s}" data-t="${t}" onclick="trellisClick(${s},${t})">${reachable[s][t]?'●':''}</div>`;
+    }
+  }
+  html += '</div>';
+  grid.innerHTML = html;
+}
+
+window.trellisClick = function(s,t){
+  const {Z, S, T, reachable} = trellisState;
+  if(!reachable[s][t]) return;
+
+  const detail = document.getElementById('trellis-alpha-detail');
+  const text = document.getElementById('trellis-alpha-text');
+  detail.style.display = 'block';
+
+  const token = Z[s]==='ε'?'blank (ε)':Z[s];
+  let sources = [];
+  let html = `<strong>Cell (s=${s}, t=${t+1})</strong> — token: "${token}"<br>`;
+
+  if(t===0){
+    html += 'This is the first time-step. ';
+    if(s<=1) html += 'This is a valid starting state.';
+    else html += 'This state is not reachable at t=1.';
+  } else {
+    // Determine case
+    const isBlank = Z[s]==='ε';
+    const sameAsTwoBack = s>=2 && Z[s]===Z[s-2];
+    const canSkip = !isBlank && !sameAsTwoBack && s>=2;
+
+    if(canSkip){
+      html += `<span style="color:var(--accent2);">Case 2 (can skip):</span> "${token}" ≠ "${Z[s-2]}" and not blank.<br>`;
+      html += `Sources: stay(s=${s}), from(s=${s-1}), skip(s=${s-2})<br>`;
+      html += `<span class="code-like">α(${s},${t}) = [α(${s},${t-1}) + α(${s-1},${t-1}) + α(${s-2},${t-1})] × P("${Z[s]}" at t=${t+1})</span>`;
+      sources = [[s,t-1],[s-1,t-1],[s-2,t-1]];
+    } else {
+      html += `<span style="color:var(--accent);">Case 1 (can't skip):</span> `;
+      if(isBlank) html += 'current is blank.';
+      else html += `"${token}" = "${Z[s-2]}" (repeated char — must pass through blank!).`;
+      html += `<br>Sources: stay(s=${s}), from(s=${s-1})<br>`;
+      html += `<span class="code-like">α(${s},${t}) = [α(${s},${t-1}) + α(${s-1},${t-1})] × P("${Z[s]==='ε'?'ε':Z[s]}" at t=${t+1})</span>`;
+      sources = [[s,t-1]];
+      if(s>0) sources.push([s-1,t-1]);
+    }
+  }
+  text.innerHTML = html;
+  renderTrellis(sources.filter(([ss,tt])=>tt>=0 && ss>=0 && reachable[ss][tt]).concat([[s,t]]));
+};
+
+let trellisAnimTimer = null;
+window.trellisAnimate = function(){
+  const {T, S, reachable} = trellisState;
+  if(trellisAnimTimer) clearInterval(trellisAnimTimer);
+  let t = 0;
+  const revealed = [];
+  trellisAnimTimer = setInterval(()=>{
+    if(t>=T){ clearInterval(trellisAnimTimer); trellisAnimTimer=null; return; }
+    for(let s=0;s<S;s++){
+      if(reachable[s][t]) revealed.push([s,t]);
+    }
+    renderTrellis(revealed);
+    document.getElementById('trellis-info').textContent = `Time-step ${t+1} of ${T}: filling in reachable states...`;
+    t++;
+    if(t===T){
+      document.getElementById('trellis-info').textContent = `Done! All reachable states filled. Click any ● to see its transition rule.`;
+    }
+  }, 600);
+};
+
+window.trellisReset = function(){
+  if(trellisAnimTimer) clearInterval(trellisAnimTimer);
+  trellisAnimTimer = null;
+  document.getElementById('trellis-alpha-detail').style.display = 'none';
+  document.getElementById('trellis-info').textContent = '';
+  renderTrellis();
+};
+
+window.trellisShowAllPaths = function(){
+  const {S, T, reachable} = trellisState;
+  const pathCells = [];
+  for(let s=0;s<S;s++) for(let t=0;t<T;t++){
+    if(reachable[s][t]) pathCells.push([s,t]);
+  }
+  renderTrellis([], pathCells);
+  document.getElementById('trellis-info').textContent = `All reachable cells shown in pink. Every path from top-left to bottom-right through pink cells is a valid alignment.`;
+};
+
+buildTrellis();
+
+// ===================== SECTION 7: Greedy Decoding Demo =====================
+let greedyProbs = [];
+const greedyChars = ['c','a','t','ε'];
+const greedyColors = {'c':'var(--accent)','a':'var(--accent2)','t':'var(--accent3)','ε':'var(--blank-color)'};
+
+function renderGreedy(){
+  const container = document.getElementById('greedy-demo');
+  const T = greedyProbs.length;
+
+  let html = '<div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:10px;">';
+  const greedy = [];
+
+  for(let t=0;t<T;t++){
+    let maxP = 0, maxC = '';
+    for(const ch of greedyChars){
+      if(greedyProbs[t][ch]>maxP){ maxP=greedyProbs[t][ch]; maxC=ch; }
+    }
+    greedy.push(maxC);
+
+    html += `<div style="min-width:60px;">`;
+    html += `<div style="text-align:center;font-size:0.75em;color:var(--muted);margin-bottom:4px;">t=${t+1}</div>`;
+    for(const ch of greedyChars){
+      const p = greedyProbs[t][ch];
+      const isMax = ch===maxC;
+      html += `<div class="prob-bar-container">
+        <div class="prob-bar-label" style="color:${greedyColors[ch]}">${ch}</div>
+        <div class="prob-bar-track" style="max-width:80px;">
+          <div class="prob-bar-fill" style="width:${p*100}%;background:${isMax?greedyColors[ch]:'#333'};">
+            ${p>=0.15?Math.round(p*100)+'%':''}
+          </div>
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Show greedy path
+  html += `<div style="margin-top:14px;">`;
+  html += `<p style="font-size:0.9em; color:var(--muted);">Greedy picks: </p>`;
+  html += `<div class="token-row">${greedy.map(c=>
+    c==='ε'?`<div class="token blank">ε</div>`:`<div class="token char">${c}</div>`
+  ).join('')}`;
+  html += `<span class="arrow">→</span>`;
+
+  // Collapse
+  const merged = [];
+  for(let i=0;i<greedy.length;i++){
+    if(i===0||greedy[i]!==greedy[i-1]) merged.push(greedy[i]);
+  }
+  const final = merged.filter(c=>c!=='ε').join('');
+  html += `<strong style="color:var(--accent); font-size:1.3em;">"${final}"</strong>`;
+  html += `</div></div>`;
+
+  container.innerHTML = html;
+}
+
+window.randomizeGreedy = function(){
+  greedyProbs = [];
+  for(let t=0;t<6;t++){
+    const raw = {};
+    let sum = 0;
+    for(const ch of greedyChars){ raw[ch]=Math.random(); sum+=raw[ch]; }
+    for(const ch of greedyChars) raw[ch]/=sum;
+    greedyProbs.push(raw);
+  }
+  renderGreedy();
+};
+
+window.setGreedyExample = function(type){
+  if(type==='good'){
+    greedyProbs = [
+      {c:0.7,a:0.1,t:0.05,ε:0.15},
+      {c:0.6,a:0.15,t:0.05,ε:0.2},
+      {c:0.05,a:0.75,t:0.1,ε:0.1},
+      {c:0.05,a:0.1,t:0.05,ε:0.8},
+      {c:0.05,a:0.05,t:0.8,ε:0.1},
+      {c:0.05,a:0.05,t:0.7,ε:0.2},
+    ];
+  } else {
+    // Tricky: greedy picks εεεεεε but "cat" has higher total probability
+    greedyProbs = [
+      {c:0.35,a:0.05,t:0.05,ε:0.55},
+      {c:0.05,a:0.35,t:0.05,ε:0.55},
+      {c:0.05,a:0.05,t:0.35,ε:0.55},
+      {c:0.05,a:0.05,t:0.05,ε:0.85},
+      {c:0.05,a:0.05,t:0.05,ε:0.85},
+      {c:0.05,a:0.05,t:0.05,ε:0.85},
+    ];
+  }
+  renderGreedy();
+};
+
+setGreedyExample('good');
+
+// ===================== SECTION 7b: Beam Search Demo =====================
+let beamStep = 0;
+const beamData = [
+  {
+    label: 'After t=1',
+    beams: [
+      {prefix: 'ε (empty)', pBlank: 0.4, pNonBlank: 0, total: 0.4},
+      {prefix: '"h"', pBlank: 0, pNonBlank: 0.35, total: 0.35},
+      {prefix: '"e"', pBlank: 0, pNonBlank: 0.15, total: 0.15},
+    ]
+  },
+  {
+    label: 'After t=2',
+    beams: [
+      {prefix: '"h"', pBlank: 0.1, pNonBlank: 0.38, total: 0.48, winner: true},
+      {prefix: 'ε (empty)', pBlank: 0.16, pNonBlank: 0, total: 0.16},
+      {prefix: '"hi"', pBlank: 0, pNonBlank: 0.14, total: 0.14},
+    ]
+  },
+  {
+    label: 'After t=3',
+    beams: [
+      {prefix: '"hi"', pBlank: 0.08, pNonBlank: 0.32, total: 0.40, winner: true},
+      {prefix: '"h"', pBlank: 0.12, pNonBlank: 0.15, total: 0.27},
+      {prefix: '"he"', pBlank: 0, pNonBlank: 0.06, total: 0.06},
+    ]
+  },
+  {
+    label: 'After t=4 (final)',
+    beams: [
+      {prefix: '"hi"', pBlank: 0.22, pNonBlank: 0.25, total: 0.47, winner: true},
+      {prefix: '"h"', pBlank: 0.05, pNonBlank: 0.08, total: 0.13},
+      {prefix: '"hii"', pBlank: 0, pNonBlank: 0.03, total: 0.03},
+    ]
+  }
+];
+
+function renderBeamStep(){
+  const container = document.getElementById('beam-steps');
+  let html = '';
+  for(let i=0;i<=beamStep && i<beamData.length;i++){
+    const step = beamData[i];
+    html += `<div class="fade-in" style="margin-bottom:14px;">`;
+    html += `<p style="font-weight:600; color:var(--accent4); margin-bottom:6px;">${step.label}</p>`;
+    html += `<div class="beam-step">`;
+    for(const b of step.beams){
+      html += `<div class="beam-candidate ${b.winner?'winner':''}">
+        <div class="prefix">${b.prefix}</div>
+        <div class="score">P(blank end): ${b.pBlank.toFixed(2)}</div>
+        <div class="score">P(char end): ${b.pNonBlank.toFixed(2)}</div>
+        <div class="score" style="color:var(--accent);font-weight:600;">Total: ${b.total.toFixed(2)}</div>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+  container.innerHTML = html;
+}
+
+window.runBeamDemo = function(){
+  if(beamStep<beamData.length-1){
+    beamStep++;
+    renderBeamStep();
+  }
+};
+window.resetBeamDemo = function(){
+  beamStep=0;
+  renderBeamStep();
+};
+renderBeamStep();
+
+// ===================== SECTION 8: Conditional Independence =====================
+window.showCIExample = function(n){
+  const d = document.getElementById('ci-display');
+  document.getElementById('ci-btn-1').className = n===1?'accent3':'secondary';
+  document.getElementById('ci-btn-2').className = n===2?'accent3':'secondary';
+  if(n===1){
+    d.innerHTML = `<p>Context: "Triple A" → output should be <strong style="color:var(--accent);">"aaa"</strong></p>
+      <p style="font-size:0.9em;">After CTC predicts the first 'a', it doesn't increase the probability of the next 'a'.
+      Each time-step's output is computed independently by the network. The network must learn to output high 'a' probability
+      at multiple time-steps purely from the audio, not from knowing it already output 'a'.</p>`;
+  } else {
+    d.innerHTML = `<p>Context: "The letter A" → output should be <strong style="color:var(--accent);">"a"</strong></p>
+      <p style="font-size:0.9em;">CTC should output just one 'a' here. But the network faces the same audio of "ayy" sound —
+      it must somehow know from context whether to sustain 'a' across time-steps or not. Without a language model,
+      CTC can struggle to distinguish these cases.</p>
+      <p style="font-size:0.9em; color:var(--accent4); margin-top:8px;">This is why real systems combine CTC with a language model!</p>`;
+  }
+};
+
+</script>
+</body>
+</html>

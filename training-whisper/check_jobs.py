@@ -9,7 +9,7 @@ logs_client = boto3.client("logs")
 # args.add_argument("--job-name", type=str, required=True, help="Name of the SageMaker training job to check")
 # args = args.parse_args()
 
-jobs = ["pytorch-training-2026-05-14-13-08-10-170", "pytorch-training-2026-05-14-13-08-11-004"]
+jobs = ["pytorch-training-2026-05-17-03-36-56-195", "pytorch-training-2026-05-17-03-37-32-190"]
 
 for job_name in jobs:
     response = sm.describe_training_job(
@@ -46,7 +46,6 @@ for job_name in jobs:
     print("\n\n\n")
 
 """
-- pytorch-training-2026-05-14-08-57-39-718
-  - pytorch-training-2026-05-14-08-57-40-564
-  - pytorch-training-2026-05-14-08-57-41-193
+- pytorch-training-2026-05-17-03-36-56-195
+  - pytorch-training-2026-05-17-03-37-32-190
   """

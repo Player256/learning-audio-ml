@@ -32,7 +32,7 @@ configs = [
         "decoder_num_layers": 6,
         "batch_size": 16,
         "lr": 1e-4,
-        "max_steps": 150000,  # ~3 epochs (820k samples / 16 batch = 51,250 steps/epoch)
+        "max_steps": 153700,  # ~3 epochs (820k samples / 16 batch = 51,250 steps/epoch)
         "warmup_steps": 2000,
         "eval_every": 2000,
     },
@@ -44,7 +44,7 @@ configs = [
         "decoder_num_layers": 8,
         "batch_size": 8,
         "lr": 5e-5,
-        "max_steps": 300000,  # ~3 epochs (820k samples / 8 batch = 102,500 steps/epoch)
+        "max_steps": 307500,  # ~3 epochs (820k samples / 8 batch = 102,500 steps/epoch)
         "warmup_steps": 4000,
         "eval_every": 4000,
     },

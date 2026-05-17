@@ -2,3 +2,4 @@ datasets
 .env
 __pycache__
 wandb
+checkpoints

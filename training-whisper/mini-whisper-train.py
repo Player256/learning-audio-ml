@@ -212,18 +212,20 @@ class WhisperStreamDataset(IterableDataset):
                 yield result
 
     def process(self, sample):
-        audio = sample["audio"]["array"]
+        # The dataset has audio in 'audio_filepath' dict with 'array' key
+        audio = sample["audio_filepath"]["array"]
 
-        
+
         if len(audio) > self.max_audio_len or len(audio) < 1600:
             return None
 
         waveform = torch.tensor(audio, dtype=torch.float32)
         mel = self.mel_transform(waveform)
-        mel = self.amp_to_db(mel)  
+        mel = self.amp_to_db(mel)
 
-        
-        text = sample["text"]
+
+        # Use 'transcription' field which has the Hindi text
+        text = sample["transcription"]
         token_ids = self.tokenizer.encode(text, add_special_tokens=False)
 
         if len(token_ids) > self.max_tokens - 4:
@@ -381,7 +383,11 @@ if __name__ == "__main__":
         print("⚠ Warning: HF_TOKEN not set. You may hit rate limits or fail to access gated datasets.")
 
     tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-small", token=hf_token)
-    config.vocab_size = tokenizer.vocab_size
+    # Use len(tokenizer) instead of vocab_size to include special tokens (language, task tokens)
+    config.vocab_size = len(tokenizer)
+    print(f"Tokenizer vocab size (base): {tokenizer.vocab_size}")
+    print(f"Tokenizer vocab size (with special tokens): {len(tokenizer)}")
+    print(f"Config vocab size: {config.vocab_size}")
 
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -390,13 +396,12 @@ if __name__ == "__main__":
     print(f"Model params: {sum(p.numel() for p in model.parameters()) / 1e6:.1f}M")
 
 
-    print("Loading SeamlessAlign dataset...")
-    raw = load_dataset("ai4bharat/SeamlessAlign", name="indic2en", split="hindi", streaming=True, token=hf_token)
+    print("Loading dataset splits from S3...")
+    s3_path = "s3://home-ml/stt_datasets"
 
-    
-    val_stream = raw.take(100_000)
-    test_stream = raw.skip(100_000).take(100_000)
-    train_stream = raw.skip(200_000).shuffle(buffer_size=5000)
+    train_stream = load_dataset("arrow", data_files=f"{s3_path}/train/*.arrow", split="train", streaming=True).shuffle(buffer_size=5000)
+    val_stream = load_dataset("arrow", data_files=f"{s3_path}/validation/*.arrow", split="train", streaming=True)
+    test_stream = load_dataset("arrow", data_files=f"{s3_path}/test/*.arrow", split="train", streaming=True)
 
     train_ds = WhisperStreamDataset(train_stream, tokenizer)
     val_ds = WhisperStreamDataset(val_stream, tokenizer)

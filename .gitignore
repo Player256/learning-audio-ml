@@ -3,3 +3,5 @@ datasets
 __pycache__
 wandb
 checkpoints
+*.pt
+streaming-whisper

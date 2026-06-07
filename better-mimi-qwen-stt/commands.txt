@@ -1,0 +1,11 @@
+aws sagemaker describe-training-job --training-job-name  qwen-mimi-stt-20260607-071023
+
+aws sagemaker stop-training-job --training-job-name  qwen-mimi-stt-20260607-071023
+
+python -c "
+import boto3
+sm = boto3.client('sagemaker')
+job = sm.describe_training_job(TrainingJobName=' qwen-mimi-stt-20260607-071023')
+print('Status:', job['TrainingJobStatus'])
+print('Reason:', job.get('FailureReason', 'N/A'))
+"

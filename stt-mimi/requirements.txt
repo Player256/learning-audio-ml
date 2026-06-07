@@ -1,0 +1,9 @@
+transformers==4.51.0
+datasets==3.6.0
+wandb
+sentencepiece
+accelerate
+jiwer
+s3fs
+soundfile
+librosa

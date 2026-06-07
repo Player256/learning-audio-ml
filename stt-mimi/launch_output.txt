@@ -1,0 +1,32 @@
+sagemaker.config INFO - Not applying SDK defaults from location: /etc/xdg/sagemaker/config.yaml
+sagemaker.config INFO - Not applying SDK defaults from location: /home/ubuntu/.config/sagemaker/config.yaml
+INFO:sagemaker.image_uris:image_uri is not presented, retrieving image_uri based on instance_type, framework etc.
+INFO:sagemaker:Creating training-job with name: mimi-qwen-stt-20260529-170535
+Launching Mimi + Qwen3-0.6B STT training...
+
+✅ W&B API key found
+
+============================================================
+Launching job: mimi-qwen-stt-20260529-170535
+Instance: ml.g5.xlarge x 1
+Model: Qwen/Qwen2.5-0.5B-Instruct
+Hidden size: 896, Layers: 24
+Batch: 4, Grad accum: 8
+Effective batch: 32
+Learning rate: 0.0001
+Max steps: 50000
+============================================================
+
+✅ Job launched: mimi-qwen-stt-20260529-170535
+📊 Monitor at: https://console.aws.amazon.com/sagemaker/home#/jobs/mimi-qwen-stt-20260529-170535
+📁 Output: s3://home-ml/experiments/mimi-qwen-stt/qwen25-0.5b-v1/
+
+============================================================
+Job launched: mimi-qwen-stt-20260529-170535
+============================================================
+
+Monitor with:
+  python check_jobs.py --job-name=mimi-qwen-stt-20260529-170535
+
+Stop with:
+  python stop_jobs.py --job-name=mimi-qwen-stt-20260529-170535
